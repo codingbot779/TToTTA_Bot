@@ -1,5 +1,5 @@
 export const DOCUMENTS_BUCKET = "documents";
-export const SUPPORTED_EXTENSIONS = [".pdf", ".txt", ".md", ".csv", ".json"];
+export const SUPPORTED_EXTENSIONS = [".pdf", ".hwp", ".hwpx", ".xlsx", ".xls", ".csv", ".txt", ".md", ".json"];
 
 export function extensionOf(fileName: string) {
   const dot = fileName.lastIndexOf(".");

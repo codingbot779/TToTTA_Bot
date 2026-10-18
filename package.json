@@ -18,6 +18,8 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "ai": "^7.0.143",
+    "cfb": "^1.2.2",
+    "jszip": "^3.10.2",
     "next": "15.5.28",
     "papaparse": "^5.7.0",
     "pdf-parse": "^2.4.5",
@@ -26,6 +28,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "server-only": "^0.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.6.7"
   },
   "devDependencies": {

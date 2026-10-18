@@ -6,6 +6,8 @@ import Papa from "papaparse";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { embed } from "./embeddings";
 import { DOCUMENTS_BUCKET, SUPPORTED_EXTENSIONS, extensionOf } from "./document-files";
+import { extractExcelSections } from "./parsers/excel";
+import { extractHwpText, extractHwpxText } from "./parsers/hwp";
 
 PDFParse.setWorker(getData());
 
@@ -26,6 +28,13 @@ async function loadSections(buffer: Buffer, ext: string): Promise<string[]> {
         await parser.destroy();
       }
     }
+    case ".hwp":
+      return [extractHwpText(buffer)];
+    case ".hwpx":
+      return [await extractHwpxText(buffer)];
+    case ".xlsx":
+    case ".xls":
+      return extractExcelSections(buffer);
     case ".txt":
     case ".md":
       return [buffer.toString("utf8")];

@@ -39,7 +39,7 @@
 
 관리자 계정(`ADMIN_EMAILS`)으로 로그인하면 사이드바에 **📚 문서 관리** 메뉴가 보입니다.
 
-1. 문서 관리 페이지에서 파일을 끌어다 놓거나 선택 (`.pdf .txt .md .csv .json`, 파일당 50MB)
+1. 문서 관리 페이지에서 파일을 끌어다 놓거나 선택 (`.pdf .hwp .hwpx .xlsx .xls .csv .txt .md .json`, 파일당 50MB)
 2. 브라우저 → Supabase Storage(`documents` 버킷)로 직접 업로드
 3. 서버가 파일을 내려받아 청크 분할 → Upstage 임베딩 → `documents` 테이블 저장
 4. 상태가 **검색 가능**이 되면 모든 사용자의 질문 검색에 바로 사용됩니다

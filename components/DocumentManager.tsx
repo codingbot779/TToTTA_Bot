@@ -13,7 +13,7 @@ type DocumentFile = {
   created_at: string;
 };
 
-const ACCEPT = ".pdf,.txt,.md,.csv,.json";
+const ACCEPT = ".pdf,.hwp,.hwpx,.xlsx,.xls,.csv,.txt,.md,.json";
 
 const STATUS_LABEL: Record<DocumentFile["status"], { text: string; className: string }> = {
   uploading: { text: "업로드 중", className: "bg-bubble text-muted" },
@@ -158,7 +158,7 @@ export function DocumentManager() {
           <p className="mt-3 font-medium">
             {uploading ? "업로드 및 임베딩 중..." : "파일을 끌어다 놓거나 클릭해서 선택하세요"}
           </p>
-          <p className="mt-1 text-xs text-muted">PDF, TXT, Markdown, CSV, JSON · 파일당 최대 50MB · 여러 개 선택 가능</p>
+          <p className="mt-1 text-xs text-muted">PDF, 한글(HWP·HWPX), 엑셀(XLSX·XLS), CSV, TXT, Markdown, JSON · 파일당 최대 50MB · 여러 개 선택 가능</p>
           <input
             ref={inputRef}
             type="file"
