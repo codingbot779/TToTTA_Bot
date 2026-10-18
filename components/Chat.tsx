@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { LogoMark } from "./Logo";
 import { ROOMS_CHANGED_EVENT } from "./Sidebar";
 import type { ChatMessage, ModelKey, Source } from "@/lib/types";
+import type { ModelCatalog, ModelOption } from "@/lib/model-catalog";
 
 const MODELS: { key: ModelKey; label: string; desc: string }[] = [
   { key: "claude", label: "Claude", desc: "Anthropic" },
@@ -15,6 +16,7 @@ const MODELS: { key: ModelKey; label: string; desc: string }[] = [
   { key: "gemini", label: "Gemini", desc: "Google" },
 ];
 const MODEL_STORAGE_KEY = "ttota:model";
+const modelIdStorageKey = (key: ModelKey) => `ttota:model-id:${key}`;
 
 const isModelKey = (v: unknown): v is ModelKey => MODELS.some((m) => m.key === v);
 
@@ -32,14 +34,20 @@ type Props = {
   roomId: string | null;
   initialMessages: ChatMessage[];
   initialModel?: string | null;
-  availableModels: ModelKey[];
+  catalog: ModelCatalog;
 };
 
-export function Chat({ roomId: initialRoomId, initialMessages, initialModel, availableModels }: Props) {
+export function Chat({ roomId: initialRoomId, initialMessages, initialModel, catalog }: Props) {
+  const availableModels = MODELS.map((m) => m.key).filter((key) => catalog[key]?.length);
   const usable = (key: unknown): key is ModelKey => isModelKey(key) && availableModels.includes(key);
   const [model, setModel] = useState<ModelKey>(
     usable(initialModel) ? initialModel : (availableModels[0] ?? "claude"),
   );
+  // 제공사별로 선택한 세부 모델 ID (기본값: 목록의 첫 번째 = .env.local 기본 모델)
+  const [modelIds, setModelIds] = useState<Partial<Record<ModelKey, string>>>(() =>
+    Object.fromEntries(availableModels.map((key) => [key, catalog[key]![0].id])),
+  );
+  const modelId = modelIds[model];
   const [input, setInput] = useState("");
   const roomIdRef = useRef(initialRoomId);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -68,6 +76,27 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, ava
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialModel]);
 
+  // 제공사별로 마지막에 고른 세부 모델 복원
+  useEffect(() => {
+    try {
+      const restored: Partial<Record<ModelKey, string>> = {};
+      for (const key of availableModels) {
+        const saved = localStorage.getItem(modelIdStorageKey(key));
+        if (saved && catalog[key]?.some((o) => o.id === saved)) restored[key] = saved;
+      }
+      setModelIds((prev) => ({ ...prev, ...restored }));
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const changeModelId = (id: string) => {
+    setModelIds((prev) => ({ ...prev, [model]: id }));
+    clearError();
+    try {
+      localStorage.setItem(modelIdStorageKey(model), id);
+    } catch {}
+  };
+
   const changeModel = (key: ModelKey) => {
     setModel(key);
     clearError();
@@ -88,7 +117,7 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, ava
     clearError();
     sendMessage(
       { text, metadata: { createdAt: new Date().toISOString() } },
-      { body: { model, roomId: roomIdRef.current } },
+      { body: { model, modelId, roomId: roomIdRef.current } },
     );
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
@@ -96,7 +125,7 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, ava
 
   const retry = () => {
     clearError();
-    regenerate({ body: { model, roomId: roomIdRef.current } });
+    regenerate({ body: { model, modelId, roomId: roomIdRef.current } });
   };
 
   const empty = messages.length === 0;
@@ -105,6 +134,14 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, ava
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-center gap-2 border-b border-border px-4 py-3 md:justify-start md:pl-6">
         <ModelSelect value={model} onChange={changeModel} disabled={busy} available={availableModels} />
+        {catalog[model] && (
+          <ModelIdSelect
+            options={catalog[model]!}
+            value={modelId}
+            onChange={changeModelId}
+            disabled={busy}
+          />
+        )}
       </header>
 
       {availableModels.length === 0 && (
@@ -133,7 +170,8 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, ava
                   onClick={retry}
                   className="shrink-0 rounded-lg border border-current px-2.5 py-1 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/40"
                 >
-                  {MODELS.find((m) => m.key === model)?.label}(으)로 다시 시도
+                  {catalog[model]?.find((o) => o.id === modelId)?.label ?? MODELS.find((m) => m.key === model)?.label}
+                  (으)로 다시 시도
                 </button>
               </div>
             )}
@@ -229,6 +267,46 @@ function ModelSelect({
   );
 }
 
+function ModelIdSelect({
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  options: ModelOption[];
+  value?: string;
+  onChange: (id: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        aria-label="세부 모델 선택"
+        className="h-[38px] max-w-[220px] appearance-none truncate rounded-xl border border-border bg-surface py-1.5 pl-3 pr-8 text-sm outline-none transition hover:border-accent/60 focus:border-accent/60 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {options.map((o, i) => (
+          <option key={o.id} value={o.id}>
+            {o.label}
+            {i === 0 ? " (기본)" : ""}
+          </option>
+        ))}
+      </select>
+      <svg
+        viewBox="0 0 24 24"
+        className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
 function textOf(message: ChatMessage) {
   return message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
 }
@@ -252,7 +330,7 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
   );
   const searched = message.parts.some((p) => p.type === "dynamic-tool" || p.type.startsWith("tool-"));
   const meta = message.metadata;
-  const modelLabel = MODELS.find((m) => m.key === meta?.model)?.label;
+  const modelLabel = meta?.modelId ?? MODELS.find((m) => m.key === meta?.model)?.label;
 
   return (
     <div className="flex gap-3">

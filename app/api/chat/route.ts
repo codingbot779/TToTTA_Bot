@@ -18,6 +18,7 @@ export const maxDuration = 60;
 type ChatRequest = {
   messages: ChatMessage[];
   model: unknown;
+  modelId?: unknown;
   roomId?: string | null;
 };
 
@@ -46,7 +47,8 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
 
-  const { messages, model: modelKey, roomId: requestedRoomId }: ChatRequest = await req.json();
+  const { messages, model: modelKey, modelId: requestedModelId, roomId: requestedRoomId }: ChatRequest =
+    await req.json();
   if (!isModelKey(modelKey)) return Response.json({ error: "지원하지 않는 모델입니다." }, { status: 400 });
 
   const lastMessage = messages.at(-1);
@@ -55,9 +57,9 @@ export async function POST(req: Request) {
     return Response.json({ error: "질문을 입력해 주세요." }, { status: 400 });
   }
 
-  let model;
+  let model, modelId: string;
   try {
-    model = getModel(modelKey);
+    ({ model, modelId } = getModel(modelKey, requestedModelId));
   } catch (error) {
     return Response.json({ error: (error as Error).message }, { status: 400 });
   }
@@ -83,7 +85,7 @@ export async function POST(req: Request) {
     user_id: user.id,
     role: "user",
     content: question,
-    model: modelKey,
+    model: modelId,
   });
 
   // 3. RAG: 질문 임베딩 → 관련 문서 검색
@@ -144,7 +146,7 @@ export async function POST(req: Request) {
       stream: tapped,
       originalMessages: messages,
       messageMetadata: ({ part }) => {
-        if (part.type === "start") return { createdAt, model: modelKey, roomId: roomId!, sources: docSources };
+        if (part.type === "start") return { createdAt, model: modelKey, modelId, roomId: roomId!, sources: docSources };
         if (part.type === "finish") return { sources: allSources() };
       },
       onError: (error) => (error instanceof Error ? error.message : "답변 생성 중 오류가 발생했습니다."),
@@ -158,7 +160,7 @@ export async function POST(req: Request) {
             role: "assistant",
             content: answer,
             sources: allSources(),
-            model: modelKey,
+            model: modelId,
           });
         }
         await supabase

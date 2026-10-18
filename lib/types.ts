@@ -9,6 +9,7 @@ export type Source =
 export type ChatMetadata = {
   createdAt?: string;
   model?: ModelKey;
+  modelId?: string;
   roomId?: string;
   sources?: Source[];
 };

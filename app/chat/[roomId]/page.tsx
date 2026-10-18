@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Chat } from "@/components/Chat";
-import { getAvailableModels } from "@/lib/models";
+import { getModelCatalog } from "@/lib/model-catalog";
+import { isModelKey } from "@/lib/models";
 import type { ChatMessage, ModelKey, Source } from "@/lib/types";
 
 type MessageRow = {
@@ -9,7 +10,7 @@ type MessageRow = {
   role: "user" | "assistant";
   content: string;
   sources: Source[] | null;
-  model: ModelKey | null;
+  model: string | null; // 세부 모델 ID (예: gemini-3.5-flash)
   created_at: string;
 };
 
@@ -32,7 +33,8 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ roomI
     parts: [{ type: "text", text: m.content }],
     metadata: {
       createdAt: m.created_at,
-      model: m.model ?? undefined,
+      model: providerOf(m.model),
+      modelId: m.model && !isModelKey(m.model) ? m.model : undefined,
       sources: m.sources ?? [],
     },
   }));
@@ -43,7 +45,15 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ roomI
       roomId={roomId}
       initialMessages={initialMessages}
       initialModel={room.model}
-      availableModels={getAvailableModels()}
+      catalog={await getModelCatalog()}
     />
   );
+}
+
+function providerOf(model: string | null): ModelKey | undefined {
+  if (!model) return undefined;
+  if (isModelKey(model)) return model;
+  if (model.startsWith("claude")) return "claude";
+  if (model.startsWith("gemini")) return "gemini";
+  return "chatgpt";
 }
