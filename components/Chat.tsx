@@ -1,0 +1,316 @@
+"use client";
+
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { LogoMark } from "./Logo";
+import { ROOMS_CHANGED_EVENT } from "./Sidebar";
+import type { ChatMessage, ModelKey, Source } from "@/lib/types";
+
+const MODELS: { key: ModelKey; label: string; desc: string }[] = [
+  { key: "claude", label: "Claude", desc: "Anthropic" },
+  { key: "chatgpt", label: "ChatGPT", desc: "OpenAI" },
+  { key: "gemini", label: "Gemini", desc: "Google" },
+];
+const MODEL_STORAGE_KEY = "ttota:model";
+
+const isModelKey = (v: unknown): v is ModelKey => MODELS.some((m) => m.key === v);
+
+function formatTime(iso?: string) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("ko-KR", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+type Props = {
+  roomId: string | null;
+  initialMessages: ChatMessage[];
+  initialModel?: string | null;
+};
+
+export function Chat({ roomId: initialRoomId, initialMessages, initialModel }: Props) {
+  const [model, setModel] = useState<ModelKey>(isModelKey(initialModel) ? initialModel : "claude");
+  const [input, setInput] = useState("");
+  const roomIdRef = useRef(initialRoomId);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { messages, sendMessage, status, stop, error, clearError } = useChat<ChatMessage>({
+    messages: initialMessages,
+    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    onFinish: ({ message }) => {
+      const newRoomId = message.metadata?.roomId;
+      if (newRoomId && !roomIdRef.current) {
+        roomIdRef.current = newRoomId;
+        window.history.replaceState(null, "", `/chat/${newRoomId}`);
+      }
+      window.dispatchEvent(new Event(ROOMS_CHANGED_EVENT));
+    },
+  });
+
+  // 새 채팅에서는 마지막으로 사용한 모델을 기본값으로
+  useEffect(() => {
+    if (initialModel) return;
+    try {
+      const saved = localStorage.getItem(MODEL_STORAGE_KEY);
+      if (isModelKey(saved)) setModel(saved);
+    } catch {}
+  }, [initialModel]);
+
+  const changeModel = (key: ModelKey) => {
+    setModel(key);
+    try {
+      localStorage.setItem(MODEL_STORAGE_KEY, key);
+    } catch {}
+  };
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, status]);
+
+  const busy = status === "submitted" || status === "streaming";
+
+  const submit = () => {
+    const text = input.trim();
+    if (!text || busy) return;
+    clearError();
+    sendMessage(
+      { text, metadata: { createdAt: new Date().toISOString() } },
+      { body: { model, roomId: roomIdRef.current } },
+    );
+    setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+  };
+
+  const empty = messages.length === 0;
+
+  return (
+    <div className="flex h-full flex-col">
+      <header className="flex items-center justify-center gap-2 border-b border-border px-4 py-3 md:justify-start md:pl-6">
+        <ModelSelect value={model} onChange={changeModel} disabled={busy} />
+      </header>
+
+      <div className="flex-1 overflow-y-auto">
+        {empty ? (
+          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+            <LogoMark className="h-12 w-12" />
+            <h1 className="mt-5 font-serif text-3xl font-bold">무엇을 도와드릴까요?</h1>
+            <p className="mt-3 text-muted">문서 내용이나 최신 소식 등 무엇이든 물어보세요.</p>
+          </div>
+        ) : (
+          <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 md:px-6">
+            {messages.map((m) =>
+              m.role === "user" ? <UserMessage key={m.id} message={m} /> : <AssistantMessage key={m.id} message={m} />,
+            )}
+            {status === "submitted" && <Thinking label="문서를 찾아보는 중..." />}
+            {error && (
+              <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                {parseError(error)}
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+        )}
+      </div>
+
+      <div className="px-4 pb-5 md:px-6">
+        <div className="mx-auto w-full max-w-3xl">
+          <div className="rounded-2xl border border-border bg-surface p-2 shadow-sm focus-within:border-accent/60">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              rows={1}
+              placeholder="TToTA AI에게 질문하기..."
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              className="block max-h-[200px] w-full resize-none bg-transparent px-3 py-2 outline-none placeholder:text-muted"
+            />
+            <div className="flex items-center justify-between px-2 pb-1">
+              <span className="text-xs text-muted">Shift + Enter 줄바꿈</span>
+              {busy ? (
+                <button
+                  onClick={() => stop()}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background"
+                  aria-label="중지"
+                >
+                  <span className="h-3 w-3 rounded-sm bg-current" />
+                </button>
+              ) : (
+                <button
+                  onClick={submit}
+                  disabled={!input.trim()}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white transition hover:bg-accent-strong disabled:opacity-40"
+                  aria-label="보내기"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="mt-2 text-center text-[11px] text-muted">
+            TToTA AI는 실수할 수 있습니다. 중요한 정보는 출처를 확인해 주세요.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModelSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: ModelKey;
+  onChange: (key: ModelKey) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex rounded-xl border border-border bg-surface p-1 text-sm">
+      {MODELS.map((m) => (
+        <button
+          key={m.key}
+          onClick={() => onChange(m.key)}
+          disabled={disabled}
+          title={m.desc}
+          className={`rounded-lg px-3 py-1.5 transition disabled:cursor-not-allowed ${
+            value === m.key ? "bg-foreground text-background" : "text-muted hover:text-foreground"
+          }`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function textOf(message: ChatMessage) {
+  return message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+}
+
+function UserMessage({ message }: { message: ChatMessage }) {
+  return (
+    <div className="flex flex-col items-end">
+      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-bubble px-4 py-2.5">{textOf(message)}</div>
+      <span className="mt-1 text-[11px] text-muted">{formatTime(message.metadata?.createdAt)}</span>
+    </div>
+  );
+}
+
+function AssistantMessage({ message }: { message: ChatMessage }) {
+  const text = textOf(message);
+  const searching = message.parts.some(
+    (p) =>
+      (p.type === "dynamic-tool" || p.type.startsWith("tool-")) &&
+      "state" in p &&
+      (p.state === "input-streaming" || p.state === "input-available"),
+  );
+  const searched = message.parts.some((p) => p.type === "dynamic-tool" || p.type.startsWith("tool-"));
+  const meta = message.metadata;
+  const modelLabel = MODELS.find((m) => m.key === meta?.model)?.label;
+
+  return (
+    <div className="flex gap-3">
+      <LogoMark className="mt-0.5 h-7 w-7 shrink-0" />
+      <div className="min-w-0 flex-1">
+        {searched && (
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted">
+            🌐 {searching ? "웹에서 최신 정보를 검색하는 중..." : "웹검색 결과를 참고했어요"}
+          </div>
+        )}
+        {text ? (
+          <div className="markdown">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{ a: (props) => <a {...props} target="_blank" rel="noreferrer" /> }}
+            >
+              {text}
+            </ReactMarkdown>
+          </div>
+        ) : (
+          !searching && <Thinking label="답변을 작성하는 중..." inline />
+        )}
+        {meta?.sources && meta.sources.length > 0 && <Sources sources={meta.sources} />}
+        <div className="mt-2 text-[11px] text-muted">
+          {[modelLabel, formatTime(meta?.createdAt)].filter(Boolean).join(" · ")}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Sources({ sources }: { sources: Source[] }) {
+  return (
+    <div className="mt-4">
+      <div className="mb-1.5 text-xs font-medium text-muted">참고한 출처</div>
+      <div className="flex flex-wrap gap-1.5">
+        {sources.map((s, i) =>
+          s.type === "web" ? (
+            <a
+              key={`w-${i}`}
+              href={s.url}
+              target="_blank"
+              rel="noreferrer"
+              title={s.url}
+              className="inline-flex max-w-[260px] items-center gap-1 rounded-lg border border-border bg-surface px-2 py-1 text-xs transition hover:border-accent/60"
+            >
+              <span>🌐</span>
+              <span className="truncate">{s.title}</span>
+            </a>
+          ) : (
+            <span
+              key={`d-${i}`}
+              title={s.similarity ? `유사도 ${s.similarity}` : undefined}
+              className="inline-flex max-w-[260px] items-center gap-1 rounded-lg border border-border bg-surface px-2 py-1 text-xs"
+            >
+              <span>📄</span>
+              <span className="truncate">{s.title}</span>
+            </span>
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Thinking({ label, inline = false }: { label: string; inline?: boolean }) {
+  return (
+    <div className={`flex items-center gap-3 text-sm text-muted ${inline ? "" : "pl-10"}`}>
+      <span className="flex gap-1">
+        {[0, 150, 300].map((d) => (
+          <span
+            key={d}
+            className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent"
+            style={{ animationDelay: `${d}ms` }}
+          />
+        ))}
+      </span>
+      {label}
+    </div>
+  );
+}
+
+function parseError(error: Error) {
+  try {
+    const parsed = JSON.parse(error.message) as { error?: string };
+    if (parsed.error) return parsed.error;
+  } catch {}
+  return error.message || "오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+}
