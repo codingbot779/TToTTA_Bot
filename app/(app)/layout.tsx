@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/Sidebar";
+import { isAdmin } from "@/lib/admin";
 import type { ChatRoom } from "@/lib/types";
 
-export default async function ChatLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -24,7 +25,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="flex h-dvh overflow-hidden">
-      <Sidebar initialRooms={(rooms ?? []) as ChatRoom[]} profile={profile} />
+      <Sidebar initialRooms={(rooms ?? []) as ChatRoom[]} profile={profile} isAdmin={isAdmin(user)} />
       <main className="flex min-w-0 flex-1 flex-col">{children}</main>
     </div>
   );

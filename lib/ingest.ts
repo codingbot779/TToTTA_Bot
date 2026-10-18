@@ -1,46 +1,27 @@
-/**
- * dataset/ 폴더의 문서를 청크로 나눠 Upstage Embedding으로 임베딩한 뒤
- * 원문과 함께 Supabase documents 테이블에 저장한다.
- *
- * 지원 형식: .pdf .txt .md .csv .json
- * 실행: npm run ingest            (dataset 전체)
- *       npm run ingest -- a.pdf   (특정 파일만)
- */
-import { config } from "dotenv";
-config({ path: ".env.local" });
-
-import { readdir, readFile } from "node:fs/promises";
-import path from "node:path";
-import Papa from "papaparse";
+import "server-only";
+// pdf-parse 워커는 pdf-parse보다 먼저 import 해야 서버리스(Vercel)에서도 동작한다
+import { getData } from "pdf-parse/worker";
 import { PDFParse } from "pdf-parse";
-import { createClient } from "@supabase/supabase-js";
-import { embed } from "../lib/embeddings";
+import Papa from "papaparse";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { embed } from "./embeddings";
+import { DOCUMENTS_BUCKET, SUPPORTED_EXTENSIONS, extensionOf } from "./document-files";
 
-const DATASET_DIR = path.join(process.cwd(), "dataset");
+PDFParse.setWorker(getData());
+
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 200;
 const EMBED_BATCH = 50;
-const SUPPORTED = [".pdf", ".txt", ".md", ".csv", ".json"];
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const secretKey = process.env.SUPABASE_SECRET_KEY;
-if (!supabaseUrl || !secretKey) {
-  console.error("❌ .env.local에 NEXT_PUBLIC_SUPABASE_URL과 SUPABASE_SECRET_KEY를 설정해 주세요.");
-  process.exit(1);
-}
-const supabase = createClient(supabaseUrl, secretKey, { auth: { persistSession: false } });
 
 /** 파일 형식별로 텍스트 단위(섹션) 목록을 만든다 */
-async function loadSections(filePath: string): Promise<string[]> {
-  const ext = path.extname(filePath).toLowerCase();
-  const buffer = await readFile(filePath);
-
+async function loadSections(buffer: Buffer, ext: string): Promise<string[]> {
   switch (ext) {
     case ".pdf": {
       const parser = new PDFParse({ data: new Uint8Array(buffer) });
       try {
         const result = await parser.getText();
-        return [result.text];
+        // 페이지 구분 표시("-- 1 of 3 --") 제거
+        return [result.text.replace(/^-- \d+ of \d+ --$/gm, "")];
       } finally {
         await parser.destroy();
       }
@@ -67,7 +48,7 @@ async function loadSections(filePath: string): Promise<string[]> {
       return items.map((item) => (typeof item === "string" ? item : JSON.stringify(item, null, 2)));
     }
     default:
-      return [];
+      throw new Error(`지원하지 않는 형식입니다. (${SUPPORTED_EXTENSIONS.join(", ")})`);
   }
 }
 
@@ -113,56 +94,40 @@ function buildChunks(sections: string[]): string[] {
   return chunks;
 }
 
-async function ingestFile(fileName: string) {
-  const sections = await loadSections(path.join(DATASET_DIR, fileName));
+type DocumentFile = { id: string; name: string; storage_path: string };
+
+/**
+ * Storage에 올라간 파일을 내려받아 청크 → Upstage 임베딩 → documents 테이블에 저장한다.
+ * 같은 파일을 다시 처리하면 기존 청크를 교체한다. 성공 시 청크 수를 돌려준다.
+ */
+export async function ingestDocumentFile(admin: SupabaseClient, file: DocumentFile): Promise<number> {
+  const { data: blob, error: downloadError } = await admin.storage
+    .from(DOCUMENTS_BUCKET)
+    .download(file.storage_path);
+  if (downloadError || !blob) throw new Error(`파일 다운로드 실패: ${downloadError?.message}`);
+
+  const sections = await loadSections(Buffer.from(await blob.arrayBuffer()), extensionOf(file.name));
   const chunks = buildChunks(sections);
   if (chunks.length === 0) {
-    console.log(`⚠️  ${fileName}: 추출된 텍스트가 없어 건너뜁니다.`);
-    return 0;
+    throw new Error("추출된 텍스트가 없습니다. (이미지로만 된 스캔 PDF는 지원하지 않습니다)");
   }
 
-  // 재실행 시 중복되지 않도록 기존 데이터 삭제
-  const { error: deleteError } = await supabase.from("documents").delete().eq("source", fileName);
-  if (deleteError) throw new Error(`기존 문서 삭제 실패: ${deleteError.message}`);
+  const { error: deleteError } = await admin.from("documents").delete().eq("file_id", file.id);
+  if (deleteError) throw new Error(`기존 청크 삭제 실패: ${deleteError.message}`);
 
   for (let i = 0; i < chunks.length; i += EMBED_BATCH) {
     const batch = chunks.slice(i, i + EMBED_BATCH);
     const vectors = await embed(batch, "passage");
     const rows = batch.map((content, j) => ({
-      source: fileName,
+      file_id: file.id,
+      source: file.name,
       chunk_index: i + j,
       content,
-      metadata: { ext: path.extname(fileName).slice(1), total_chunks: chunks.length },
+      metadata: { ext: extensionOf(file.name).slice(1), total_chunks: chunks.length },
       embedding: JSON.stringify(vectors[j]),
     }));
-    const { error } = await supabase.from("documents").insert(rows);
-    if (error) throw new Error(`저장 실패: ${error.message}`);
+    const { error } = await admin.from("documents").insert(rows);
+    if (error) throw new Error(`청크 저장 실패: ${error.message}`);
   }
-  console.log(`✅ ${fileName}: ${chunks.length}개 청크 저장`);
   return chunks.length;
 }
-
-async function main() {
-  const only = process.argv.slice(2);
-  const files = (await readdir(DATASET_DIR))
-    .filter((f) => SUPPORTED.includes(path.extname(f).toLowerCase()))
-    .filter((f) => only.length === 0 || only.includes(f));
-
-  if (files.length === 0) {
-    console.log(`dataset/ 폴더에 문서(${SUPPORTED.join(", ")})를 넣은 뒤 다시 실행해 주세요.`);
-    return;
-  }
-
-  console.log(`📚 ${files.length}개 문서 임베딩 시작...`);
-  let total = 0;
-  for (const file of files) {
-    try {
-      total += await ingestFile(file);
-    } catch (error) {
-      console.error(`❌ ${file}:`, (error as Error).message);
-    }
-  }
-  console.log(`\n완료: 총 ${total}개 청크`);
-}
-
-main();

@@ -21,7 +21,15 @@ function formatDate(iso: string) {
   });
 }
 
-export function Sidebar({ initialRooms, profile }: { initialRooms: ChatRoom[]; profile: Profile }) {
+export function Sidebar({
+  initialRooms,
+  profile,
+  isAdmin,
+}: {
+  initialRooms: ChatRoom[];
+  profile: Profile;
+  isAdmin: boolean;
+}) {
   const [rooms, setRooms] = useState(initialRooms);
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -82,6 +90,17 @@ export function Sidebar({ initialRooms, profile }: { initialRooms: ChatRoom[]; p
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-white">+</span>
             새 채팅
           </Link>
+          {isAdmin && (
+            <Link
+              href="/documents"
+              className={`mt-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                pathname === "/documents" ? "bg-black/[0.07] dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/5"
+              }`}
+            >
+              <span className="flex h-6 w-6 items-center justify-center text-base">📚</span>
+              문서 관리
+            </Link>
+          )}
         </div>
 
         <div className="mt-4 px-5 text-xs font-medium text-muted">최근 대화</div>

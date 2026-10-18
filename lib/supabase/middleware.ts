@@ -38,7 +38,7 @@ export async function updateSession(request: NextRequest) {
   };
 
   // 비로그인 사용자는 챗봇 페이지 접근 불가 → 랜딩페이지로
-  if (!user && pathname.startsWith("/chat")) return redirectTo("/");
+  if (!user && (pathname.startsWith("/chat") || pathname.startsWith("/documents"))) return redirectTo("/");
   // 로그인 사용자가 랜딩페이지에 오면 → 챗봇 페이지로
   if (user && pathname === "/") return redirectTo("/chat");
 

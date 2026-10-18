@@ -42,6 +42,38 @@ as $$
 $$;
 
 -- ─────────────────────────────────────────────────────────
+-- 1-1. 업로드한 원본 파일 (Supabase Storage 'documents' 버킷)
+--      업로드/삭제는 서버(관리자 API)에서 secret key로만 수행합니다.
+-- ─────────────────────────────────────────────────────────
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('documents', 'documents', false, 52428800)  -- 50MB
+on conflict (id) do nothing;
+
+create table if not exists public.document_files (
+  id           uuid primary key default gen_random_uuid(),
+  name         text not null,                 -- 원본 파일명
+  storage_path text not null unique,          -- documents 버킷 내 경로
+  size         bigint,
+  status       text not null default 'uploading'
+               check (status in ('uploading', 'processing', 'ready', 'error')),
+  chunk_count  int not null default 0,
+  error        text,
+  uploaded_by  uuid references auth.users (id) on delete set null,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+alter table public.document_files enable row level security;
+drop policy if exists "document files readable by authenticated" on public.document_files;
+create policy "document files readable by authenticated"
+  on public.document_files for select to authenticated using (true);
+
+-- 청크 ↔ 원본 파일 연결 (파일 삭제 시 청크도 함께 삭제)
+alter table public.documents
+  add column if not exists file_id uuid references public.document_files (id) on delete cascade;
+create index if not exists documents_file_idx on public.documents (file_id);
+
+-- ─────────────────────────────────────────────────────────
 -- 2. 채팅방
 -- ─────────────────────────────────────────────────────────
 create table if not exists public.chat_rooms (
