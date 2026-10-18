@@ -36,3 +36,8 @@ export function getModel(key: ModelKey) {
   }
   return create();
 }
+
+/** API 키가 설정된 모델 목록 */
+export function getAvailableModels(): ModelKey[] {
+  return (Object.keys(CONFIG) as ModelKey[]).filter((key) => !!process.env[CONFIG[key].envKey]);
+}

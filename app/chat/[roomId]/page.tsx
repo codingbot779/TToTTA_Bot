@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Chat } from "@/components/Chat";
+import { getAvailableModels } from "@/lib/models";
 import type { ChatMessage, ModelKey, Source } from "@/lib/types";
 
 type MessageRow = {
@@ -36,5 +37,13 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ roomI
     },
   }));
 
-  return <Chat key={roomId} roomId={roomId} initialMessages={initialMessages} initialModel={room.model} />;
+  return (
+    <Chat
+      key={roomId}
+      roomId={roomId}
+      initialMessages={initialMessages}
+      initialModel={room.model}
+      availableModels={getAvailableModels()}
+    />
+  );
 }

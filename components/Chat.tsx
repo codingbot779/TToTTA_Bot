@@ -32,16 +32,20 @@ type Props = {
   roomId: string | null;
   initialMessages: ChatMessage[];
   initialModel?: string | null;
+  availableModels: ModelKey[];
 };
 
-export function Chat({ roomId: initialRoomId, initialMessages, initialModel }: Props) {
-  const [model, setModel] = useState<ModelKey>(isModelKey(initialModel) ? initialModel : "claude");
+export function Chat({ roomId: initialRoomId, initialMessages, initialModel, availableModels }: Props) {
+  const usable = (key: unknown): key is ModelKey => isModelKey(key) && availableModels.includes(key);
+  const [model, setModel] = useState<ModelKey>(
+    usable(initialModel) ? initialModel : (availableModels[0] ?? "claude"),
+  );
   const [input, setInput] = useState("");
   const roomIdRef = useRef(initialRoomId);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { messages, sendMessage, status, stop, error, clearError } = useChat<ChatMessage>({
+  const { messages, sendMessage, regenerate, status, stop, error, clearError } = useChat<ChatMessage>({
     messages: initialMessages,
     transport: new DefaultChatTransport({ api: "/api/chat" }),
     onFinish: ({ message }) => {
@@ -56,15 +60,17 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel }: P
 
   // 새 채팅에서는 마지막으로 사용한 모델을 기본값으로
   useEffect(() => {
-    if (initialModel) return;
+    if (usable(initialModel)) return;
     try {
       const saved = localStorage.getItem(MODEL_STORAGE_KEY);
-      if (isModelKey(saved)) setModel(saved);
+      if (usable(saved)) setModel(saved);
     } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialModel]);
 
   const changeModel = (key: ModelKey) => {
     setModel(key);
+    clearError();
     try {
       localStorage.setItem(MODEL_STORAGE_KEY, key);
     } catch {}
@@ -88,13 +94,24 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel }: P
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   };
 
+  const retry = () => {
+    clearError();
+    regenerate({ body: { model, roomId: roomIdRef.current } });
+  };
+
   const empty = messages.length === 0;
 
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-center gap-2 border-b border-border px-4 py-3 md:justify-start md:pl-6">
-        <ModelSelect value={model} onChange={changeModel} disabled={busy} />
+        <ModelSelect value={model} onChange={changeModel} disabled={busy} available={availableModels} />
       </header>
+
+      {availableModels.length === 0 && (
+        <div className="border-b border-border bg-surface px-4 py-2.5 text-center text-sm text-muted">
+          사용 가능한 AI 모델이 없습니다. .env.local에 LLM API 키를 입력한 뒤 서버를 재시작해 주세요.
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         {empty ? (
@@ -110,8 +127,14 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel }: P
             )}
             {status === "submitted" && <Thinking label="문서를 찾아보는 중..." />}
             {error && (
-              <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-                {parseError(error)}
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                <span>{parseError(error)}</span>
+                <button
+                  onClick={retry}
+                  className="shrink-0 rounded-lg border border-current px-2.5 py-1 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/40"
+                >
+                  {MODELS.find((m) => m.key === model)?.label}(으)로 다시 시도
+                </button>
               </div>
             )}
             <div ref={bottomRef} />
@@ -177,26 +200,31 @@ function ModelSelect({
   value,
   onChange,
   disabled,
+  available,
 }: {
   value: ModelKey;
   onChange: (key: ModelKey) => void;
   disabled: boolean;
+  available: ModelKey[];
 }) {
   return (
     <div className="flex rounded-xl border border-border bg-surface p-1 text-sm">
-      {MODELS.map((m) => (
-        <button
-          key={m.key}
-          onClick={() => onChange(m.key)}
-          disabled={disabled}
-          title={m.desc}
-          className={`rounded-lg px-3 py-1.5 transition disabled:cursor-not-allowed ${
-            value === m.key ? "bg-foreground text-background" : "text-muted hover:text-foreground"
-          }`}
-        >
-          {m.label}
-        </button>
-      ))}
+      {MODELS.map((m) => {
+        const enabled = available.includes(m.key);
+        return (
+          <button
+            key={m.key}
+            onClick={() => onChange(m.key)}
+            disabled={disabled || !enabled}
+            title={enabled ? m.desc : `${m.label} API 키 미설정`}
+            className={`rounded-lg px-3 py-1.5 transition disabled:cursor-not-allowed ${
+              value === m.key ? "bg-foreground text-background" : "text-muted hover:text-foreground"
+            } ${enabled ? "" : "line-through opacity-40 hover:text-muted"}`}
+          >
+            {m.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
