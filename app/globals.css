@@ -64,3 +64,8 @@ body {
 .markdown th, .markdown td { border: 1px solid var(--border); padding: 0.45em 0.7em; text-align: left; }
 .markdown th { background: var(--sidebar); }
 .markdown hr { border-color: var(--border); }
+
+/* 작동 원리 페이지 일러스트의 흐르는 연결선 */
+.flow-dash { stroke-dasharray: 6 8; animation: flow-dash 1.2s linear infinite; }
+@keyframes flow-dash { to { stroke-dashoffset: -28; } }
+@media (prefers-reduced-motion: reduce) { .flow-dash { animation: none; } }

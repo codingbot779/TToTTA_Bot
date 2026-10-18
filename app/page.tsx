@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
@@ -35,6 +36,9 @@ export default async function LandingPage({
     <div className="flex min-h-screen flex-col">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
         <Logo />
+        <Link href="/how-it-works" className="text-sm text-muted transition hover:text-foreground">
+          작동 원리
+        </Link>
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-6 pb-20 pt-12 text-center sm:pt-20">
@@ -67,6 +71,13 @@ export default async function LandingPage({
             </div>
           ))}
         </section>
+
+        <Link
+          href="/how-it-works"
+          className="mt-10 text-sm font-medium text-accent-strong underline-offset-4 hover:underline"
+        >
+          TToTA는 어떻게 작동하나요? →
+        </Link>
       </main>
 
       <footer className="py-6 text-center text-xs text-muted">© TToTA AI</footer>
