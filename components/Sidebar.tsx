@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { LogoMark } from "./Logo";
+import { ThemeControl } from "./ThemeProvider";
 import type { ChatRoom } from "@/lib/types";
 
 export const ROOMS_CHANGED_EVENT = "ttota:rooms-changed";
@@ -130,6 +131,10 @@ export function Sidebar({
           ))}
         </nav>
 
+        <div className="border-t border-border px-4 py-3">
+          <p className="mb-2 text-xs text-muted">화면 테마</p>
+          <ThemeControl />
+        </div>
         <div className="flex items-center gap-3 border-t border-border p-3">
           {profile.avatarUrl ? (
             <Image

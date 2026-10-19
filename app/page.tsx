@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { ThemeControl } from "@/components/ThemeProvider";
 
 const FEATURES = [
   {
@@ -34,11 +35,14 @@ export default async function LandingPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="mx-auto flex min-h-20 w-full max-w-[1440px] items-center justify-between gap-4 px-6 sm:px-12">
+      <header className="mx-auto flex min-h-20 w-full max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-4 sm:px-12">
         <Logo />
-        <Link href="/how-it-works" className="rounded-full border border-border px-5 py-3 text-sm text-muted transition hover:bg-surface hover:text-foreground">
-          작동 원리 ↗
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <ThemeControl />
+          <Link href="/how-it-works" className="rounded-full border border-border px-5 py-3 text-sm text-muted transition hover:bg-surface hover:text-foreground">
+            작동 원리 ↗
+          </Link>
+        </div>
       </header>
 
       <main className="flex-1">
@@ -58,7 +62,7 @@ export default async function LandingPage({
               <GoogleSignInButton />
               <p className="text-xs text-muted">Google 계정으로 로그인하고 대화를 시작하세요.</p>
               {error && (
-                <p role="alert" className="text-sm text-red-300">로그인에 실패했습니다. 다시 시도해 주세요.</p>
+                <p role="alert" className="text-sm text-red-700 dark:text-red-300">로그인에 실패했습니다. 다시 시도해 주세요.</p>
               )}
             </div>
           </div>

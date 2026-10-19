@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { ThemeControl } from "@/components/ThemeProvider";
 import {
   ChunkingIllustration,
   HeroFlowIllustration,
@@ -136,16 +137,19 @@ function StepList({ steps }: { steps: Step[] }) {
 export default function HowItWorksPage() {
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
+      <header className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-5">
         <Link href="/" aria-label="TToTA AI 홈">
           <Logo />
         </Link>
-        <Link
-          href="/"
-          className="inline-flex min-h-11 items-center rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition hover:opacity-90"
-        >
-          시작하기
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <ThemeControl />
+          <Link
+            href="/"
+            className="inline-flex min-h-11 items-center rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition hover:opacity-90"
+          >
+            시작하기
+          </Link>
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 pb-24">
