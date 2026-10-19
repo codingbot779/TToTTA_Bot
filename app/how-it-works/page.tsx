@@ -106,8 +106,8 @@ const FORMATS = [".pdf", ".hwp", ".hwpx", ".xlsx", ".xls", ".csv", ".txt", ".md"
 function SectionHeading({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
   return (
     <div className="max-w-2xl">
-      <p className="text-sm font-semibold text-accent">{eyebrow}</p>
-      <h2 className="mt-2 font-serif text-3xl font-bold leading-snug tracking-tight break-keep sm:text-4xl">{title}</h2>
+      <p className="eyebrow text-muted">{eyebrow}</p>
+      <h2 className="editorial-title mt-4 text-3xl sm:text-5xl">{title}</h2>
       <p className="mt-4 leading-relaxed text-muted">{body}</p>
     </div>
   );
@@ -117,14 +117,14 @@ function StepList({ steps }: { steps: Step[] }) {
   return (
     <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {steps.map((s, i) => (
-        <li key={s.title} className="relative rounded-2xl border border-border bg-surface p-6">
+        <li key={s.title} className="relative rounded-xl border border-border bg-surface p-8">
           <div className="flex items-center justify-between">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-bubble text-accent">
+            <span className="flex h-11 w-11 items-center justify-center rounded-md border border-border text-muted">
               <StepIcon name={s.icon} />
             </span>
-            <span className="font-serif text-3xl font-bold text-border">{String(i + 1).padStart(2, "0")}</span>
+            <span className="eyebrow text-muted">{String(i + 1).padStart(2, "0")}</span>
           </div>
-          <h3 className="mt-5 font-semibold">{s.title}</h3>
+          <h3 className="mt-5 text-xl font-normal tracking-tight">{s.title}</h3>
           <p className="mt-2 text-sm leading-relaxed text-muted">{s.body}</p>
           <span className="mt-4 inline-block rounded-full bg-bubble px-3 py-1 text-xs text-muted">{s.tag}</span>
         </li>
@@ -142,7 +142,7 @@ export default function HowItWorksPage() {
         </Link>
         <Link
           href="/"
-          className="rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90"
+          className="inline-flex min-h-11 items-center rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition hover:opacity-90"
         >
           시작하기
         </Link>
@@ -152,11 +152,11 @@ export default function HowItWorksPage() {
         {/* 히어로 */}
         <section className="grid items-center gap-12 pt-10 sm:pt-16 lg:grid-cols-[1fr_1.1fr]">
           <div>
-            <span className="rounded-full border border-border bg-surface px-4 py-1.5 text-sm text-muted">
+            <span className="eyebrow text-muted">
               작동 원리
             </span>
-            <h1 className="mt-6 font-serif text-4xl font-bold leading-tight tracking-tight break-keep sm:text-5xl">
-              TToTA는 <span className="text-accent">찾아보고</span> 답합니다
+            <h1 className="editorial-title mt-6 text-5xl sm:text-6xl">
+              TToTA는 찾아보고 답합니다
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-muted">
               AI가 기억에만 의존하면 그럴듯한 오답을 만들 수 있습니다. TToTA는 질문을 받으면 먼저 등록된 문서에서
@@ -185,8 +185,8 @@ export default function HowItWorksPage() {
               </ul>
             </div>
             <Arrow />
-            <div className="rounded-2xl border-2 border-accent bg-surface p-6">
-              <p className="text-xs font-semibold text-accent">TToTA 서버 · Vercel</p>
+            <div className="rounded-xl border border-border bg-surface p-6">
+              <p className="eyebrow text-muted">TToTA 서버 · Vercel</p>
               <h3 className="mt-2 font-semibold">Next.js</h3>
               <ul className="mt-3 space-y-2 text-sm">
                 <li className="rounded-lg bg-bubble px-3 py-2">
@@ -288,14 +288,15 @@ export default function HowItWorksPage() {
         </section>
 
         {/* CTA */}
-        <section className="mt-28 rounded-3xl bg-foreground px-6 py-14 text-center text-background sm:px-12">
-          <h2 className="font-serif text-3xl font-bold tracking-tight break-keep sm:text-4xl">이제 직접 물어보세요</h2>
+        <section className="paper-section mt-24 rounded-xl px-6 py-16 text-center sm:px-12">
+          <p className="eyebrow mb-5 text-muted">FROM KNOWLEDGE TO ANSWERS</p>
+          <h2 className="editorial-title text-3xl sm:text-5xl">이제 직접 물어보세요</h2>
           <p className="mx-auto mt-4 max-w-lg leading-relaxed opacity-75">
             Google 계정으로 로그인하면 바로 시작할 수 있습니다. 답변마다 어떤 문서와 페이지를 참고했는지 함께 보여드려요.
           </p>
           <Link
             href="/"
-            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3.5 font-medium text-white transition hover:bg-accent-strong"
+            className="mt-8 inline-flex min-h-12 items-center gap-2 rounded-full bg-foreground px-6 py-3 font-medium text-background transition hover:opacity-80"
           >
             TToTA 시작하기 →
           </Link>

@@ -131,8 +131,9 @@ export function DocumentManager() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-4xl px-4 py-10 md:px-8">
-        <h1 className="font-serif text-2xl font-bold">문서 관리</h1>
+      <div className="mx-auto w-full max-w-4xl px-4 pb-10 pt-20 md:px-8 md:pt-12">
+        <p className="eyebrow text-muted">KNOWLEDGE LIBRARY</p>
+        <h1 className="editorial-title mt-4 text-4xl">문서 관리</h1>
         <p className="mt-2 text-sm text-muted">
           업로드한 문서는 Supabase Storage에 저장되고, Upstage Embedding으로 임베딩되어 모든 사용자의 질문 검색에
           사용됩니다.
@@ -150,7 +151,7 @@ export function DocumentManager() {
             if (!uploading) handleFiles(e.dataTransfer.files);
           }}
           onClick={() => !uploading && inputRef.current?.click()}
-          className={`mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition ${
+          className={`mt-8 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-6 py-12 text-center transition ${
             dragging ? "border-accent bg-accent/5" : "border-border bg-surface hover:border-accent/60"
           } ${uploading ? "cursor-wait opacity-70" : ""}`}
         >
@@ -188,7 +189,7 @@ export function DocumentManager() {
           </span>
         </div>
 
-        <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-surface">
+        <div className="mt-3 overflow-hidden rounded-md border border-border bg-surface">
           {loading ? (
             <p className="px-5 py-8 text-center text-sm text-muted">불러오는 중...</p>
           ) : files.length === 0 ? (

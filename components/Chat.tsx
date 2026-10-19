@@ -132,7 +132,7 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-center gap-2 border-b border-border px-4 py-3 md:justify-start md:pl-6">
+      <header className="flex flex-wrap items-center justify-center gap-2 border-b border-border pb-3 pl-16 pr-4 pt-3 md:justify-start md:pl-6">
         <ModelSelect value={model} onChange={changeModel} disabled={busy} available={availableModels} />
         {catalog[model] && (
           <ModelIdSelect
@@ -154,7 +154,8 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
         {empty ? (
           <div className="flex h-full flex-col items-center justify-center px-6 text-center">
             <LogoMark className="h-12 w-12" />
-            <h1 className="mt-5 font-serif text-3xl font-bold">무엇을 도와드릴까요?</h1>
+            <p className="eyebrow mt-5 text-muted">YOUR KNOWLEDGE, CONNECTED</p>
+            <h1 className="editorial-title mt-4 text-3xl sm:text-5xl">무엇을 도와드릴까요?</h1>
             <p className="mt-3 text-muted">문서 내용이나 최신 소식 등 무엇이든 물어보세요.</p>
           </div>
         ) : (
@@ -182,12 +183,13 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
 
       <div className="px-4 pb-5 md:px-6">
         <div className="mx-auto w-full max-w-3xl">
-          <div className="rounded-2xl border border-border bg-surface p-2 shadow-sm focus-within:border-accent/60">
+          <div className="rounded-md border border-border bg-surface p-2 focus-within:border-[#55beff] focus-within:ring-1 focus-within:ring-[#55beff]">
             <textarea
               ref={textareaRef}
               value={input}
               rows={1}
               placeholder="TToTA AI에게 질문하기..."
+              aria-label="질문 입력"
               onChange={(e) => {
                 setInput(e.target.value);
                 e.target.style.height = "auto";
@@ -206,7 +208,7 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
               {busy ? (
                 <button
                   onClick={() => stop()}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background"
+                  className="flex h-11 w-11 items-center justify-center rounded-md bg-foreground text-background"
                   aria-label="중지"
                 >
                   <span className="h-3 w-3 rounded-sm bg-current" />
@@ -215,7 +217,7 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
                 <button
                   onClick={submit}
                   disabled={!input.trim()}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white transition hover:bg-accent-strong disabled:opacity-40"
+                  className="flex h-11 w-11 items-center justify-center rounded-md bg-accent text-[#0b0b0b] transition hover:bg-accent-strong disabled:opacity-40"
                   aria-label="보내기"
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -246,7 +248,7 @@ function ModelSelect({
   available: ModelKey[];
 }) {
   return (
-    <div className="flex rounded-xl border border-border bg-surface p-1 text-sm">
+    <div className="flex rounded-md border border-border bg-surface p-1 text-sm">
       {MODELS.map((m) => {
         const enabled = available.includes(m.key);
         return (
@@ -255,7 +257,7 @@ function ModelSelect({
             onClick={() => onChange(m.key)}
             disabled={disabled || !enabled}
             title={enabled ? m.desc : `${m.label} API 키 미설정`}
-            className={`rounded-lg px-3 py-1.5 transition disabled:cursor-not-allowed ${
+            className={`min-h-9 rounded px-3 py-1.5 transition disabled:cursor-not-allowed ${
               value === m.key ? "bg-foreground text-background" : "text-muted hover:text-foreground"
             } ${enabled ? "" : "line-through opacity-40 hover:text-muted"}`}
           >
@@ -285,7 +287,7 @@ function ModelIdSelect({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         aria-label="세부 모델 선택"
-        className="h-[38px] max-w-[220px] appearance-none truncate rounded-xl border border-border bg-surface py-1.5 pl-3 pr-8 text-sm outline-none transition hover:border-accent/60 focus:border-accent/60 disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-11 max-w-[220px] appearance-none truncate rounded-md border border-border bg-surface py-1.5 pl-3 pr-8 text-sm transition hover:border-muted disabled:cursor-not-allowed disabled:opacity-60"
       >
         {options.map((o, i) => (
           <option key={o.id} value={o.id}>

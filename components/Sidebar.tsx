@@ -63,7 +63,7 @@ export function Sidebar({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed left-3 top-3 z-30 rounded-lg border border-border bg-surface p-2 md:hidden"
+        className="fixed left-3 top-3 z-30 flex h-11 w-11 items-center justify-center rounded-md border border-border bg-surface md:hidden"
         aria-label="메뉴 열기"
       >
         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
@@ -79,22 +79,22 @@ export function Sidebar({
       >
         <div className="flex items-center gap-2 px-4 pb-3 pt-4">
           <LogoMark className="h-6 w-6" />
-          <span className="font-serif font-bold">TToTA AI</span>
+          <span className="text-lg font-medium tracking-tight">TToTA AI</span>
         </div>
 
         <div className="px-3">
           <Link
             href="/chat"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:border-muted"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-white">+</span>
+            <span className="flex h-6 w-6 items-center justify-center text-foreground">+</span>
             새 채팅
           </Link>
           {isAdmin && (
             <Link
               href="/documents"
               className={`mt-0.5 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                pathname === "/documents" ? "bg-black/[0.07] dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/5"
+                pathname === "/documents" ? "bg-surface" : "hover:bg-surface"
               }`}
             >
               <span className="flex h-6 w-6 items-center justify-center text-base">📚</span>
@@ -103,14 +103,14 @@ export function Sidebar({
           )}
         </div>
 
-        <div className="mt-4 px-5 text-xs font-medium text-muted">최근 대화</div>
+        <div className="eyebrow mt-8 px-5 text-muted">최근 대화 / HISTORY</div>
         <nav className="mt-1 flex-1 overflow-y-auto px-3 pb-3">
           {rooms.length === 0 && <p className="px-3 py-2 text-sm text-muted">아직 대화가 없습니다.</p>}
           {rooms.map((room) => (
             <div
               key={room.id}
               className={`group relative rounded-lg transition ${
-                room.id === activeId ? "bg-black/[0.07] dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/5"
+                room.id === activeId ? "bg-surface" : "hover:bg-surface"
               }`}
             >
               <Link href={`/chat/${room.id}`} className="block px-3 py-2 pr-8">
@@ -119,7 +119,7 @@ export function Sidebar({
               </Link>
               <button
                 onClick={() => deleteRoom(room.id)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted opacity-0 transition hover:text-foreground group-hover:opacity-100"
+                className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted transition hover:text-foreground focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
                 aria-label="대화 삭제"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -141,7 +141,7 @@ export function Sidebar({
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-sm font-semibold text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-sm font-medium">
               {profile.name.slice(0, 1)}
             </div>
           )}
@@ -151,7 +151,7 @@ export function Sidebar({
           </div>
           <form action="/auth/signout" method="post">
             <button
-              className="rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted transition hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
+              className="min-h-11 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted transition hover:bg-surface hover:text-foreground"
               title="로그아웃"
             >
               로그아웃
