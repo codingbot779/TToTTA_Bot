@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test lib/answer-export.test.ts components/AnswerDownload.test.tsx",
     "check": "tsx scripts/check-services.ts"
   },
   "dependencies": {
@@ -19,7 +20,9 @@
     "@supabase/supabase-js": "^2.118.0",
     "ai": "^7.0.143",
     "cfb": "^1.2.2",
+    "docx": "^9.13.0",
     "jszip": "^3.10.2",
+    "marked": "^18.1.1",
     "next": "15.5.28",
     "papaparse": "^5.7.0",
     "pdf-parse": "^2.4.5",

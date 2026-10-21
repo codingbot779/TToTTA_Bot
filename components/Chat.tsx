@@ -5,6 +5,7 @@ import { DefaultChatTransport } from "ai";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AnswerDownload } from "./AnswerDownload";
 import { LogoMark } from "./Logo";
 import { ROOMS_CHANGED_EVENT } from "./Sidebar";
 import type { ChatMessage, ModelKey, Source } from "@/lib/types";
@@ -161,7 +162,7 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
         ) : (
           <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 md:px-6">
             {messages.map((m) =>
-              m.role === "user" ? <UserMessage key={m.id} message={m} /> : <AssistantMessage key={m.id} message={m} />,
+              m.role === "user" ? <UserMessage key={m.id} message={m} /> : <AssistantMessage key={m.id} message={m} downloadingDisabled={busy} />,
             )}
             {status === "submitted" && <Thinking label="문서를 찾아보는 중..." />}
             {error && (
@@ -322,7 +323,7 @@ function UserMessage({ message }: { message: ChatMessage }) {
   );
 }
 
-function AssistantMessage({ message }: { message: ChatMessage }) {
+function AssistantMessage({ message, downloadingDisabled }: { message: ChatMessage; downloadingDisabled: boolean }) {
   const text = textOf(message);
   const searching = message.parts.some(
     (p) =>
@@ -355,6 +356,7 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
         ) : (
           !searching && <Thinking label="답변을 작성하는 중..." inline />
         )}
+        {text && <AnswerDownload text={text} sources={meta?.sources} disabled={downloadingDisabled} />}
         {meta?.sources && meta.sources.length > 0 && <Sources sources={meta.sources} />}
         <div className="mt-2 text-[11px] text-muted">
           {[modelLabel, formatTime(meta?.createdAt)].filter(Boolean).join(" · ")}
