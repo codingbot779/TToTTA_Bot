@@ -5,14 +5,13 @@ import { PDFParse } from "pdf-parse";
 import Papa from "papaparse";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { embed } from "./embeddings";
+import { buildChunks } from "./document-chunks";
 import { DOCUMENTS_BUCKET, SUPPORTED_EXTENSIONS, extensionOf } from "./document-files";
 import { extractExcelSections } from "./parsers/excel";
 import { extractHwpText, extractHwpxText } from "./parsers/hwp";
 
 PDFParse.setWorker(getData());
 
-const CHUNK_SIZE = 1000;
-const CHUNK_OVERLAP = 200;
 const EMBED_BATCH = 50;
 
 /** 파일 형식별로 텍스트 단위(섹션) 목록을 만든다 */
@@ -59,48 +58,6 @@ async function loadSections(buffer: Buffer, ext: string): Promise<string[]> {
     default:
       throw new Error(`지원하지 않는 형식입니다. (${SUPPORTED_EXTENSIONS.join(", ")})`);
   }
-}
-
-/** 문단 경계를 최대한 살리며 CHUNK_SIZE 내외로 자르고 CHUNK_OVERLAP 만큼 겹치게 한다 */
-function chunkText(text: string): string[] {
-  const clean = text.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-  if (!clean) return [];
-  if (clean.length <= CHUNK_SIZE) return [clean];
-
-  const chunks: string[] = [];
-  let start = 0;
-  while (start < clean.length) {
-    let end = Math.min(start + CHUNK_SIZE, clean.length);
-    if (end < clean.length) {
-      const window = clean.slice(start, end);
-      const breakAt = Math.max(window.lastIndexOf("\n\n"), window.lastIndexOf("\n"), window.lastIndexOf(". "));
-      if (breakAt > CHUNK_SIZE * 0.5) end = start + breakAt + 1;
-    }
-    chunks.push(clean.slice(start, end).trim());
-    if (end >= clean.length) break;
-    start = end - CHUNK_OVERLAP;
-  }
-  return chunks.filter(Boolean);
-}
-
-/** 짧은 섹션(CSV 행 등)은 묶어서 하나의 청크로 */
-function buildChunks(sections: string[]): string[] {
-  const chunks: string[] = [];
-  let buffer = "";
-  for (const section of sections) {
-    if (section.length > CHUNK_SIZE) {
-      if (buffer) chunks.push(buffer);
-      buffer = "";
-      chunks.push(...chunkText(section));
-    } else if ((buffer + "\n\n" + section).length > CHUNK_SIZE) {
-      if (buffer) chunks.push(buffer);
-      buffer = section;
-    } else {
-      buffer = buffer ? `${buffer}\n\n${section}` : section;
-    }
-  }
-  if (buffer.trim()) chunks.push(buffer.trim());
-  return chunks;
 }
 
 type DocumentFile = { id: string; name: string; storage_path: string };
