@@ -6,9 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AnswerDownload } from "./AnswerDownload";
+import { Sources } from "./Sources";
 import { LogoMark } from "./Logo";
 import { ROOMS_CHANGED_EVENT } from "./Sidebar";
-import type { ChatMessage, ModelKey, Source } from "@/lib/types";
+import type { ChatMessage, ModelKey } from "@/lib/types";
 import type { ModelCatalog, ModelOption } from "@/lib/model-catalog";
 
 const MODELS: { key: ModelKey; label: string; desc: string }[] = [
@@ -361,40 +362,6 @@ function AssistantMessage({ message, downloadingDisabled }: { message: ChatMessa
         <div className="mt-2 text-[11px] text-muted">
           {[modelLabel, formatTime(meta?.createdAt)].filter(Boolean).join(" · ")}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Sources({ sources }: { sources: Source[] }) {
-  return (
-    <div className="mt-4">
-      <div className="mb-1.5 text-xs font-medium text-muted">참고한 출처</div>
-      <div className="flex flex-wrap gap-1.5">
-        {sources.map((s, i) =>
-          s.type === "web" ? (
-            <a
-              key={`w-${i}`}
-              href={s.url}
-              target="_blank"
-              rel="noreferrer"
-              title={s.url}
-              className="inline-flex max-w-[260px] items-center gap-1 rounded-lg border border-border bg-surface px-2 py-1 text-xs transition hover:border-accent/60"
-            >
-              <span>🌐</span>
-              <span className="truncate">{s.title}</span>
-            </a>
-          ) : (
-            <span
-              key={`d-${i}`}
-              title={s.similarity ? `유사도 ${s.similarity}` : undefined}
-              className="inline-flex max-w-[260px] items-center gap-1 rounded-lg border border-border bg-surface px-2 py-1 text-xs"
-            >
-              <span>📄</span>
-              <span className="truncate">{s.title}</span>
-            </span>
-          ),
-        )}
       </div>
     </div>
   );

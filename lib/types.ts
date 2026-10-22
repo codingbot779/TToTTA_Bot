@@ -3,7 +3,7 @@ import type { UIMessage } from "ai";
 export type ModelKey = "claude" | "chatgpt" | "gemini";
 
 export type Source =
-  | { type: "doc"; title: string; similarity?: number }
+  | { type: "doc"; title: string; similarity?: number; fileId?: string }
   | { type: "web"; title: string; url: string };
 
 export type ChatMetadata = {

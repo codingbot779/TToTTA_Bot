@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test lib/answer-export.test.ts components/AnswerDownload.test.tsx lib/document-chunks.test.ts lib/database-text.test.ts",
+    "test": "tsx --test lib/answer-export.test.ts components/AnswerDownload.test.tsx lib/document-chunks.test.ts lib/database-text.test.ts lib/document-download.test.ts components/Sources.test.tsx",
     "check": "tsx scripts/check-services.ts"
   },
   "dependencies": {

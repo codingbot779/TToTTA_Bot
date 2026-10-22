@@ -29,15 +29,36 @@ export async function retrieveDocuments(
     .map((d, i) => `[문서 ${i + 1}] 출처: ${d.source}\n${d.content}`)
     .join("\n\n---\n\n");
 
-  // 같은 파일에서 여러 청크가 나오면 출처는 한 번만, 가장 높은 유사도로 표시
-  const bySource = new Map<string, number>();
-  for (const d of docs) {
-    bySource.set(d.source, Math.max(bySource.get(d.source) ?? 0, d.similarity));
+  // RPC 반환형/운영 스키마 변경 없이 청크 ID로 원본 파일을 연결한다.
+  const fileIds = new Map<number, string>();
+  if (docs.length) {
+    const { data: rows, error: fileError } = await supabase
+      .from("documents")
+      .select("id, file_id")
+      .in("id", docs.map((doc) => doc.id));
+    if (!fileError) {
+      for (const row of rows ?? []) {
+        if (row.file_id) fileIds.set(row.id, row.file_id);
+      }
+    }
   }
-  const sources: Source[] = [...bySource].map(([title, similarity]) => ({
-    type: "doc",
-    title,
-    similarity: Math.round(similarity * 100) / 100,
+
+  // 동명 파일은 ID로 구분하고, 같은 파일은 가장 높은 유사도만 표시한다.
+  const bySource = new Map<string, Extract<Source, { type: "doc" }>>();
+  for (const d of docs) {
+    const fileId = fileIds.get(d.id);
+    const key = fileId ? `file:${fileId}` : `source:${d.source}`;
+    const previous = bySource.get(key);
+    bySource.set(key, {
+      type: "doc",
+      title: d.source,
+      similarity: Math.max(previous?.similarity ?? 0, d.similarity),
+      ...(fileId ? { fileId } : {}),
+    });
+  }
+  const sources: Source[] = [...bySource.values()].map((source) => ({
+    ...source,
+    similarity: Math.round((source.similarity ?? 0) * 100) / 100,
   }));
 
   return { context, sources };
