@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Source } from "./types";
 
 function loadModule<T>(relativePath: string, mocks: Record<string, unknown>): T {
@@ -26,7 +27,7 @@ const FILE = { id: FILE_ID, name: "현대해상_펫보험.pdf", storage_path: `$
 
 type FileRecord = typeof FILE;
 function downloadHarness(options: {
-  loggedIn?: boolean; authError?: boolean; files?: readonly FileRecord[]; dbError?: boolean; signingError?: boolean;
+  loggedIn?: boolean; authError?: boolean; files?: readonly FileRecord[]; dbError?: boolean; signingError?: boolean; signedUrl?: string;
 } = {}) {
   const filters: [string, unknown][] = [];
   const signed: unknown[][] = [];
@@ -59,7 +60,7 @@ function downloadHarness(options: {
           signed.push(args);
           return options.signingError
             ? { data: null, error: { message: "missing object" } }
-            : { data: { signedUrl: "https://storage.example.test/signed-original" }, error: null };
+            : { data: { signedUrl: options.signedUrl ?? "https://storage.example.test/signed-original" }, error: null };
         } };
       } } };
     } },
@@ -75,11 +76,13 @@ test("원본 다운로드는 로그인과 사용자 RLS 조회를 거쳐 DB 경�
   const h = downloadHarness();
   const response = await h.get(`fileId=${FILE_ID}&storage_path=another-user.pdf`);
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get("location"), "https://storage.example.test/signed-original");
+  const location = new URL(response.headers.get("location")!);
+  assert.equal(location.origin + location.pathname, "https://storage.example.test/signed-original");
+  assert.equal(location.searchParams.get("download"), FILE.name);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
   assert.equal(response.headers.get("referrer-policy"), "no-referrer");
   assert.deepEqual(h.filters, [["id", FILE_ID]]);
-  assert.deepEqual(JSON.parse(JSON.stringify(h.signed)), [[FILE.storage_path, 60, { download: FILE.name }]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.signed)), [[FILE.storage_path, 60]]);
 });
 
 test("기존 대화의 파일명 출처는 정확한 이름으로 조회", async () => {
@@ -87,6 +90,37 @@ test("기존 대화의 파일명 출처는 정확한 이름으로 조회", async
   const response = await h.get(new URLSearchParams({ source: FILE.name }).toString());
   assert.equal(response.status, 303);
   assert.deepEqual(h.filters, [["name", FILE.name]]);
+});
+
+test("실제 SDK의 한글 파일명 이중 인코딩 재현 및 수정 경로의 단일 인코딩 검증", async () => {
+  // SDK는 실제 설치 버전을 사용하되 네트워크는 테스트 응답으로 대체한다.
+  const sdk = createSupabaseClient("https://storage.example.test", "unit-test-key", {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: async () => new Response(JSON.stringify({
+      signedURL: "/object/sign/documents/original.pdf?token=unit-test-token%2Bsafe",
+    }), { headers: { "Content-Type": "application/json" } }) },
+  });
+  const bucket = sdk.storage.from("documents");
+  for (const name of [
+    "현대해상_펫보험.pdf",
+    "현대해상_펫보험.pdf",
+    "문서 + & %20 # ' (원본).pdf",
+  ]) {
+    const legacy = await bucket.createSignedUrl(FILE.storage_path, 60, { download: name });
+    assert.ifError(legacy.error);
+    assert.notEqual(new URL(legacy.data!.signedUrl).searchParams.get("download"), name);
+
+    const bare = await bucket.createSignedUrl(FILE.storage_path, 60);
+    assert.ifError(bare.error);
+    const before = new URL(bare.data!.signedUrl);
+    const h = downloadHarness({ files: [{ ...FILE, name }], signedUrl: bare.data!.signedUrl });
+    const response = await h.get(`fileId=${FILE_ID}`);
+    const after = new URL(response.headers.get("location")!);
+    assert.equal(after.searchParams.get("download"), name);
+    assert.equal(after.searchParams.get("token"), before.searchParams.get("token"));
+    assert.equal(after.pathname, before.pathname);
+    assert.ok(after.searchParams.get("download")!.endsWith(".pdf"));
+  }
 });
 
 for (const [label, options, query, status] of [

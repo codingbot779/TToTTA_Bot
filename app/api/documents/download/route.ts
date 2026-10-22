@@ -35,13 +35,18 @@ export async function GET(req: Request) {
   const file = files[0];
   const { data, error: signingError } = await createAdminClient().storage
     .from(DOCUMENTS_BUCKET)
-    .createSignedUrl(file.storage_path, 60, { download: file.name });
+    .createSignedUrl(file.storage_path, 60);
   if (signingError || !data?.signedUrl) return fail("원본 다운로드 링크를 만들지 못했습니다.", 502);
+
+  // SDK의 download 옵션은 URLSearchParams 인코딩 후 encodeURI로 한 번 더 인코딩된다.
+  // 서명 URL을 받은 뒤 원본 이름을 한 번만 인코딩해 붙인다(정규화/디코딩하지 않음).
+  const downloadUrl = new URL(data.signedUrl);
+  downloadUrl.searchParams.set("download", file.name);
 
   return new Response(null, {
     status: 303,
     headers: {
-      Location: data.signedUrl,
+      Location: downloadUrl.toString(),
       "Cache-Control": "private, no-store",
       "Referrer-Policy": "no-referrer",
     },
