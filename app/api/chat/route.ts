@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getModel, isModelKey } from "@/lib/models";
 import { retrieveDocuments } from "@/lib/rag";
 import { extractWebSources, getTavilyTools } from "@/lib/tavily-mcp";
+import { createChatTitle, sanitizeDatabaseText } from "@/lib/database-text";
 import type { ChatMessage, Source } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -23,7 +24,7 @@ type ChatRequest = {
 };
 
 const textOf = (message: ChatMessage) =>
-  message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+  sanitizeDatabaseText(message.parts.map((p) => (p.type === "text" ? p.text : "")).join(""));
 
 function buildSystemPrompt(context: string) {
   const today = new Date().toLocaleDateString("ko-KR", { dateStyle: "full", timeZone: "Asia/Seoul" });
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
   } else {
     const { data, error } = await supabase
       .from("chat_rooms")
-      .insert({ user_id: user.id, title: question.slice(0, 40), model: modelKey })
+      .insert({ user_id: user.id, title: createChatTitle(question), model: modelKey })
       .select("id")
       .single();
     if (error) return Response.json({ error: `채팅방 생성 실패: ${error.message}` }, { status: 500 });
@@ -100,7 +101,11 @@ export async function POST(req: Request) {
   // 4. Tavily MCP 웹검색 툴 준비
   const tavily = await getTavilyTools();
   const webSources: Source[] = [];
-  const allSources = () => [...docSources, ...webSources];
+  const allSources = (): Source[] => [...docSources, ...webSources].map((source) =>
+    source.type === "web"
+      ? { ...source, title: sanitizeDatabaseText(source.title), url: sanitizeDatabaseText(source.url) }
+      : { ...source, title: sanitizeDatabaseText(source.title) },
+  );
 
   // 텍스트만 모델에 전달 (모델을 바꿔가며 대화해도 호환되도록)
   const history = messages.map((m) => ({

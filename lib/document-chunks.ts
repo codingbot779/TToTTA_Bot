@@ -1,13 +1,7 @@
+import { sanitizeDatabaseText } from "./database-text";
+
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 200;
-
-/** PostgreSQL text/jsonb에서 허용하지 않는 NUL과 잘못된 UTF-16을 제거·치환한다. */
-function sanitizeText(text: string): string {
-  return text.split("\0").join("").replace(
-    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
-    "\uFFFD",
-  );
-}
 
 /** 청크 경계에서 정상 이모지 등의 UTF-16 surrogate pair가 분리되는지 확인한다. */
 function splitsSurrogatePair(text: string, index: number): boolean {
@@ -45,7 +39,7 @@ export function buildChunks(sections: string[]): string[] {
   const chunks: string[] = [];
   let buffer = "";
   for (const rawSection of sections) {
-    const section = sanitizeText(rawSection);
+    const section = sanitizeDatabaseText(rawSection);
     if (!section.trim()) continue;
     if (section.length > CHUNK_SIZE) {
       if (buffer) chunks.push(buffer);
