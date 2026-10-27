@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { CATEGORY_MAX_LENGTH, normalizeCategory } from "@/lib/document-categories";
 
 type DocumentFile = {
   id: string;
   name: string;
   size: number | null;
+  category: string | null;
   status: "uploading" | "processing" | "ready" | "error";
   chunk_count: number;
   error: string | null;
@@ -42,6 +44,9 @@ export function DocumentManager() {
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState<{ type: "error" | "info"; text: string } | null>(null);
   const [dragging, setDragging] = useState(false);
+  // 이번에 업로드할 파일들에 적용할 카테고리 ("" = 미분류)
+  const [uploadCategory, setUploadCategory] = useState("");
+  const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -80,12 +85,12 @@ export function DocumentManager() {
     }
   };
 
-  const uploadOne = async (file: File) => {
+  const uploadOne = async (file: File, category: string | null) => {
     // 1) 서버에서 서명 업로드 URL 발급 → 2) Storage로 직접 업로드 → 3) 임베딩 처리
     const { id, path, token } = await api<{ id: string; path: string; token: string }>("/api/documents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: file.name, size: file.size }),
+      body: JSON.stringify({ name: file.name, size: file.size, category }),
     });
     await reload();
     const { error } = await createClient().storage.from("documents").uploadToSignedUrl(path, token, file);
@@ -99,18 +104,56 @@ export function DocumentManager() {
   const handleFiles = async (list: FileList | null) => {
     if (!list?.length) return;
     setMessage(null);
+    let category: string | null;
+    try {
+      category = normalizeCategory(uploadCategory);
+    } catch (e) {
+      setMessage({ type: "error", text: (e as Error).message });
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     const errors: string[] = [];
     for (const file of Array.from(list)) {
       try {
-        await uploadOne(file);
+        await uploadOne(file, category);
       } catch (e) {
         errors.push((e as Error).message);
       }
     }
     await reload();
     if (errors.length) setMessage({ type: "error", text: errors.join("\n") });
-    else setMessage({ type: "info", text: `${list.length}개 문서를 업로드했습니다.` });
+    else
+      setMessage({
+        type: "info",
+        text: `${list.length}개 문서를 ${category ? `'${category}' 카테고리로 ` : "미분류로 "}업로드했습니다.`,
+      });
     if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const saveCategory = async (file: DocumentFile, value: string) => {
+    let category: string | null;
+    try {
+      category = normalizeCategory(value);
+    } catch (e) {
+      setMessage({ type: "error", text: (e as Error).message });
+      return;
+    }
+    setEditing(null);
+    if (category === file.category) return;
+    markBusy(file.id, true);
+    try {
+      await api(`/api/documents/${file.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category }),
+      });
+      setFiles((prev) => prev.map((f) => (f.id === file.id ? { ...f, category } : f)));
+      setMessage({ type: "info", text: `'${file.name}'의 카테고리를 ${category ? `'${category}'(으)로` : "미분류로"} 변경했습니다.` });
+    } catch (e) {
+      setMessage({ type: "error", text: (e as Error).message });
+    } finally {
+      markBusy(file.id, false);
+    }
   };
 
   const remove = async (file: DocumentFile) => {
@@ -128,6 +171,9 @@ export function DocumentManager() {
 
   const uploading = busyIds.size > 0;
   const readyCount = files.filter((f) => f.status === "ready").length;
+  const existingCategories = [...new Set(files.map((f) => f.category).filter((c): c is string => !!c))].sort((a, b) =>
+    a.localeCompare(b, "ko"),
+  );
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -138,6 +184,31 @@ export function DocumentManager() {
           업로드한 문서는 Supabase Storage에 저장되고, Upstage Embedding으로 임베딩되어 모든 사용자의 질문 검색에
           사용됩니다.
         </p>
+
+        <datalist id="document-categories">
+          {existingCategories.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+
+        <div className="mt-8">
+          <label htmlFor="upload-category" className="text-sm font-medium">
+            업로드할 문서의 카테고리
+          </label>
+          <input
+            id="upload-category"
+            list="document-categories"
+            value={uploadCategory}
+            maxLength={CATEGORY_MAX_LENGTH}
+            disabled={uploading}
+            onChange={(e) => setUploadCategory(e.target.value)}
+            placeholder="예: 보험, 인사규정 (비워두면 미분류)"
+            className="mt-2 block h-11 w-full max-w-sm rounded-md border border-border bg-surface px-3 text-sm placeholder:text-muted disabled:opacity-60"
+          />
+          <p className="mt-1 text-xs text-muted">
+            기존 카테고리를 선택하거나 새로 입력하세요. 사용자는 채팅에서 카테고리를 골라 해당 문서만 검색할 수 있습니다.
+          </p>
+        </div>
 
         <div
           onDragOver={(e) => {
@@ -151,7 +222,7 @@ export function DocumentManager() {
             if (!uploading) handleFiles(e.dataTransfer.files);
           }}
           onClick={() => !uploading && inputRef.current?.click()}
-          className={`mt-8 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-6 py-12 text-center transition ${
+          className={`mt-4 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-6 py-12 text-center transition ${
             dragging ? "border-accent bg-accent/5" : "border-border bg-surface hover:border-accent/60"
           } ${uploading ? "cursor-wait opacity-70" : ""}`}
         >
@@ -206,6 +277,53 @@ export function DocumentManager() {
                       <div className="mt-0.5 text-xs text-muted">
                         {formatSize(f.size)} · {new Date(f.created_at).toLocaleString("ko-KR")}
                         {f.status === "ready" && ` · ${f.chunk_count}개 청크`}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                        {editing?.id === f.id ? (
+                          <form
+                            className="flex items-center gap-1.5"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              saveCategory(f, editing.value);
+                            }}
+                          >
+                            <input
+                              autoFocus
+                              list="document-categories"
+                              value={editing.value}
+                              maxLength={CATEGORY_MAX_LENGTH}
+                              aria-label={`${f.name} 카테고리`}
+                              placeholder="비워두면 미분류"
+                              onChange={(e) => setEditing({ id: f.id, value: e.target.value })}
+                              onKeyDown={(e) => e.key === "Escape" && setEditing(null)}
+                              className="h-9 w-44 rounded-md border border-border bg-background px-2"
+                            />
+                            <button type="submit" className="h-9 rounded-md border border-border px-2.5 hover:text-foreground">
+                              저장
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditing(null)}
+                              className="h-9 rounded-md px-2 text-muted hover:text-foreground"
+                            >
+                              취소
+                            </button>
+                          </form>
+                        ) : (
+                          <>
+                            <span className="rounded-full border border-border px-2 py-0.5">
+                              {f.category ? `🗂️ ${f.category}` : "미분류"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setEditing({ id: f.id, value: f.category ?? "" })}
+                              disabled={busy}
+                              className="text-muted underline-offset-2 hover:text-foreground hover:underline disabled:opacity-40"
+                            >
+                              카테고리 변경
+                            </button>
+                          </>
+                        )}
                       </div>
                       {f.status === "error" && f.error && (
                         <div className="mt-1 text-xs text-red-600 dark:text-red-400">{f.error}</div>

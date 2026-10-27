@@ -12,6 +12,7 @@ import { getModel, isModelKey } from "@/lib/models";
 import { retrieveDocuments } from "@/lib/rag";
 import { extractWebSources, getTavilyTools } from "@/lib/tavily-mcp";
 import { createChatTitle, sanitizeDatabaseText } from "@/lib/database-text";
+import { normalizeCategory } from "@/lib/document-categories";
 import type { ChatMessage, Source } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -21,15 +22,19 @@ type ChatRequest = {
   model: unknown;
   modelId?: unknown;
   roomId?: string | null;
+  category?: unknown;
 };
 
 const textOf = (message: ChatMessage) =>
   sanitizeDatabaseText(message.parts.map((p) => (p.type === "text" ? p.text : "")).join(""));
 
-function buildSystemPrompt(context: string) {
+function buildSystemPrompt(context: string, category: string | null) {
   const today = new Date().toLocaleDateString("ko-KR", { dateStyle: "full", timeZone: "Asia/Seoul" });
+  const scope = category
+    ? `\n문서 검색 범위: 사용자가 선택한 '${category}' 카테고리의 문서만 검색했습니다. 이 범위 밖 문서 내용은 추측하지 마세요.`
+    : "";
   return `당신은 'TToTA AI'입니다. 사용자의 질문에 한국어로 친절하고 정확하게 답변합니다.
-오늘 날짜: ${today}
+오늘 날짜: ${today}${scope}
 
 [답변 원칙]
 1. 아래 [참고 문서]에 관련 내용이 있으면 이를 최우선 근거로 답변하세요.
@@ -48,8 +53,13 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
 
-  const { messages, model: modelKey, modelId: requestedModelId, roomId: requestedRoomId }: ChatRequest =
-    await req.json();
+  const {
+    messages,
+    model: modelKey,
+    modelId: requestedModelId,
+    roomId: requestedRoomId,
+    category: requestedCategory,
+  }: ChatRequest = await req.json();
   if (!isModelKey(modelKey)) return Response.json({ error: "지원하지 않는 모델입니다." }, { status: 400 });
 
   const lastMessage = messages.at(-1);
@@ -63,6 +73,29 @@ export async function POST(req: Request) {
     ({ model, modelId } = getModel(modelKey, requestedModelId));
   } catch (error) {
     return Response.json({ error: (error as Error).message }, { status: 400 });
+  }
+
+  // 0. 카테고리 확인 (채팅방·메시지를 만들기 전에 검증)
+  let category: string | null;
+  try {
+    category = normalizeCategory(requestedCategory);
+  } catch (error) {
+    return Response.json({ error: (error as Error).message }, { status: 400 });
+  }
+  if (category) {
+    const { data: found, error: categoryError } = await supabase
+      .from("document_files")
+      .select("id")
+      .eq("category", category)
+      .eq("status", "ready")
+      .limit(1);
+    if (categoryError) {
+      console.error("[category]", categoryError.message);
+      return Response.json({ error: "카테고리 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+    }
+    if (!found?.length) {
+      return Response.json({ error: "선택한 카테고리에 검색 가능한 문서가 없습니다. 다른 카테고리를 선택해 주세요." }, { status: 400 });
+    }
   }
 
   // 1. 채팅방 확인 또는 생성
@@ -93,7 +126,7 @@ export async function POST(req: Request) {
   let context = "";
   let docSources: Source[] = [];
   try {
-    ({ context, sources: docSources } = await retrieveDocuments(supabase, question));
+    ({ context, sources: docSources } = await retrieveDocuments(supabase, question, 5, category));
   } catch (error) {
     console.error("[RAG]", error);
   }
@@ -115,7 +148,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model,
-    system: buildSystemPrompt(context),
+    system: buildSystemPrompt(context, category),
     messages: await convertToModelMessages(history),
     tools: tavily.tools,
     stopWhen: stepCountIs(5),

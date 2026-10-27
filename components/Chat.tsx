@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AnswerDownload } from "./AnswerDownload";
+import { CategorySelect } from "./CategorySelect";
 import { Sources } from "./Sources";
 import { LogoMark } from "./Logo";
 import { ROOMS_CHANGED_EVENT } from "./Sidebar";
@@ -18,6 +19,7 @@ const MODELS: { key: ModelKey; label: string; desc: string }[] = [
   { key: "gemini", label: "Gemini", desc: "Google" },
 ];
 const MODEL_STORAGE_KEY = "ttota:model";
+const CATEGORY_STORAGE_KEY = "ttota:category";
 const modelIdStorageKey = (key: ModelKey) => `ttota:model-id:${key}`;
 
 const isModelKey = (v: unknown): v is ModelKey => MODELS.some((m) => m.key === v);
@@ -37,9 +39,11 @@ type Props = {
   initialMessages: ChatMessage[];
   initialModel?: string | null;
   catalog: ModelCatalog;
+  /** 검색 가능한 문서가 있는 카테고리 목록 (비어 있으면 선택 UI를 숨김) */
+  categories?: string[];
 };
 
-export function Chat({ roomId: initialRoomId, initialMessages, initialModel, catalog }: Props) {
+export function Chat({ roomId: initialRoomId, initialMessages, initialModel, catalog, categories = [] }: Props) {
   const availableModels = MODELS.map((m) => m.key).filter((key) => catalog[key]?.length);
   const usable = (key: unknown): key is ModelKey => isModelKey(key) && availableModels.includes(key);
   const [model, setModel] = useState<ModelKey>(
@@ -50,6 +54,8 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
     Object.fromEntries(availableModels.map((key) => [key, catalog[key]![0].id])),
   );
   const modelId = modelIds[model];
+  // "" = 전체 문서
+  const [category, setCategory] = useState("");
   const [input, setInput] = useState("");
   const roomIdRef = useRef(initialRoomId);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -91,6 +97,24 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 마지막에 고른 카테고리 복원 (현재 목록에 없으면 전체 문서)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CATEGORY_STORAGE_KEY);
+      if (saved && categories.includes(saved)) setCategory(saved);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const changeCategory = (value: string) => {
+    setCategory(value);
+    clearError();
+    try {
+      if (value) localStorage.setItem(CATEGORY_STORAGE_KEY, value);
+      else localStorage.removeItem(CATEGORY_STORAGE_KEY);
+    } catch {}
+  };
+
   const changeModelId = (id: string) => {
     setModelIds((prev) => ({ ...prev, [model]: id }));
     clearError();
@@ -112,6 +136,7 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
   }, [messages, status]);
 
   const busy = status === "submitted" || status === "streaming";
+  const requestBody = () => ({ model, modelId, roomId: roomIdRef.current, category: category || null });
 
   const submit = () => {
     const text = input.trim();
@@ -119,7 +144,7 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
     clearError();
     sendMessage(
       { text, metadata: { createdAt: new Date().toISOString() } },
-      { body: { model, modelId, roomId: roomIdRef.current } },
+      { body: requestBody() },
     );
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
@@ -127,7 +152,7 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
 
   const retry = () => {
     clearError();
-    regenerate({ body: { model, modelId, roomId: roomIdRef.current } });
+    regenerate({ body: requestBody() });
   };
 
   const empty = messages.length === 0;
@@ -144,6 +169,9 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
             disabled={busy}
           />
         )}
+        {categories.length > 0 && (
+          <CategorySelect categories={categories} value={category} onChange={changeCategory} disabled={busy} />
+        )}
       </header>
 
       {availableModels.length === 0 && (
@@ -158,7 +186,11 @@ export function Chat({ roomId: initialRoomId, initialMessages, initialModel, cat
             <LogoMark className="h-12 w-12" />
             <p className="eyebrow mt-5 text-muted">YOUR KNOWLEDGE, CONNECTED</p>
             <h1 className="editorial-title mt-4 text-3xl sm:text-5xl">무엇을 도와드릴까요?</h1>
-            <p className="mt-3 text-muted">문서 내용이나 최신 소식 등 무엇이든 물어보세요.</p>
+            <p className="mt-3 text-muted">
+              {category
+                ? `'${category}' 카테고리 문서를 기준으로 답변합니다.`
+                : "문서 내용이나 최신 소식 등 무엇이든 물어보세요."}
+            </p>
           </div>
         ) : (
           <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 md:px-6">

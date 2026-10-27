@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DOCUMENTS_BUCKET, SUPPORTED_EXTENSIONS, extensionOf } from "@/lib/document-files";
+import { normalizeCategory } from "@/lib/document-categories";
 
 const MAX_SIZE = 50 * 1024 * 1024;
 
@@ -11,7 +12,7 @@ export async function GET() {
 
   const { data, error: dbError } = await createAdminClient()
     .from("document_files")
-    .select("id, name, size, status, chunk_count, error, created_at, updated_at")
+    .select("id, name, size, category, status, chunk_count, error, created_at, updated_at")
     .order("created_at", { ascending: false });
   if (dbError) return Response.json({ error: dbError.message }, { status: 500 });
   return Response.json({ files: data });
@@ -25,8 +26,18 @@ export async function POST(req: Request) {
   const { user, error } = await requireAdmin();
   if (error) return error;
 
-  const { name, size } = (await req.json()) as { name?: string; size?: number };
+  const { name, size, category: requestedCategory } = (await req.json()) as {
+    name?: string;
+    size?: number;
+    category?: unknown;
+  };
   if (!name) return Response.json({ error: "파일명이 없습니다." }, { status: 400 });
+  let category: string | null;
+  try {
+    category = normalizeCategory(requestedCategory);
+  } catch (e) {
+    return Response.json({ error: (e as Error).message }, { status: 400 });
+  }
   const ext = extensionOf(name);
   if (!SUPPORTED_EXTENSIONS.includes(ext)) {
     return Response.json({ error: `지원 형식: ${SUPPORTED_EXTENSIONS.join(", ")}` }, { status: 400 });
@@ -42,6 +53,7 @@ export async function POST(req: Request) {
     id,
     name,
     size: size ?? null,
+    category,
     storage_path: storagePath,
     uploaded_by: user.id,
   });

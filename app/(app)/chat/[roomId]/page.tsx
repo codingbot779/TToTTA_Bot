@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Chat } from "@/components/Chat";
 import { getModelCatalog } from "@/lib/model-catalog";
+import { listSearchableCategories } from "@/lib/document-categories";
 import { isModelKey } from "@/lib/models";
 import type { ChatMessage, ModelKey, Source } from "@/lib/types";
 
@@ -46,6 +47,7 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ roomI
       initialMessages={initialMessages}
       initialModel={room.model}
       catalog={await getModelCatalog()}
+      categories={await listSearchableCategories(supabase)}
     />
   );
 }

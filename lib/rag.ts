@@ -10,18 +10,22 @@ type MatchedDocument = {
   similarity: number;
 };
 
-/** 질문을 임베딩해 Supabase에서 관련 문서 청크를 검색한다 */
+/** 질문을 임베딩해 Supabase에서 관련 문서 청크를 검색한다. category가 있으면 그 카테고리 문서만 검색한다. */
 export async function retrieveDocuments(
   supabase: SupabaseClient,
   question: string,
   matchCount = 5,
+  category: string | null = null,
 ): Promise<{ context: string; sources: Source[] }> {
   const embedding = await embedQuery(question);
-  const { data, error } = await supabase.rpc("match_documents", {
+  const params = {
     query_embedding: JSON.stringify(embedding),
     match_count: matchCount,
     match_threshold: 0.3,
-  });
+  };
+  const { data, error } = category
+    ? await supabase.rpc("match_documents_by_category", { ...params, filter_category: category })
+    : await supabase.rpc("match_documents", params);
   if (error) throw new Error(`문서 검색 실패: ${error.message}`);
 
   const docs = (data ?? []) as MatchedDocument[];
