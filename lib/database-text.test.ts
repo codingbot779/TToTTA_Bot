@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { createChatTitle, sanitizeDatabaseText } from "./database-text";
 import { normalizeCategory } from "./document-categories";
+import { rewriteSearchQuery } from "./query-rewrite";
 
 const assertSafe = (text: string) => assert.equal(sanitizeDatabaseText(text), text);
 
@@ -54,6 +55,7 @@ test("실제 채팅 라우트: 제목·질문·답변·출처 저장값 정제 (
     "@/lib/models": { isModelKey: () => true, getModel: () => ({ model: {}, modelId: "test-model" }) },
     "@/lib/database-text": { createChatTitle, sanitizeDatabaseText },
     "@/lib/document-categories": { normalizeCategory },
+    "@/lib/query-rewrite": { rewriteSearchQuery },
     "@/lib/rag": { retrieveDocuments: async (_client: unknown, question: string) => {
       retrievedQuestion = question;
       return { context: "test context", sources: [{ type: "doc", title: "문서\0제목\ud800" }] };

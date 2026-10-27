@@ -13,6 +13,7 @@ import { retrieveDocuments } from "@/lib/rag";
 import { extractWebSources, getTavilyTools } from "@/lib/tavily-mcp";
 import { createChatTitle, sanitizeDatabaseText } from "@/lib/database-text";
 import { normalizeCategory } from "@/lib/document-categories";
+import { rewriteSearchQuery } from "@/lib/query-rewrite";
 import type { ChatMessage, Source } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -122,11 +123,16 @@ export async function POST(req: Request) {
     model: modelId,
   });
 
-  // 3. RAG: 질문 임베딩 → 관련 문서 검색
+  // 3. RAG: (이어지는 질문이면 앞 대화를 반영해 검색 문장으로 변환) → 질문 임베딩 → 관련 문서 검색
   let context = "";
   let docSources: Source[] = [];
   try {
-    ({ context, sources: docSources } = await retrieveDocuments(supabase, question, 5, category));
+    const { query } = await rewriteSearchQuery({
+      model,
+      history: messages.slice(0, -1).map((m) => ({ role: m.role, text: textOf(m) })),
+      question,
+    });
+    ({ context, sources: docSources } = await retrieveDocuments(supabase, query, 5, category));
   } catch (error) {
     console.error("[RAG]", error);
   }

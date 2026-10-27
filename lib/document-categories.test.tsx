@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createChatTitle, sanitizeDatabaseText } from "./database-text";
 import { listSearchableCategories, normalizeCategory } from "./document-categories";
 import { CategorySelect } from "../components/CategorySelect";
+import { rewriteSearchQuery } from "./query-rewrite";
 
 function loadModule<T>(relativePath: string, mocks: Record<string, unknown>): T {
   const source = readFileSync(new URL(relativePath, import.meta.url), "utf8");
@@ -117,6 +118,7 @@ function chatHarness(categoryRows: { data: unknown[] | null; error: unknown }) {
     "@/lib/models": { isModelKey: () => true, getModel: () => ({ model: {}, modelId: "test-model" }) },
     "@/lib/database-text": { createChatTitle, sanitizeDatabaseText },
     "@/lib/document-categories": { normalizeCategory },
+    "@/lib/query-rewrite": { rewriteSearchQuery },
     "@/lib/rag": { retrieveDocuments: async (...args: unknown[]) => { retrieved = args.slice(1); return { context: "", sources: [] }; } },
     "@/lib/tavily-mcp": { getTavilyTools: async () => ({ tools: {}, close: async () => {} }), extractWebSources: () => [] },
     ai: {
